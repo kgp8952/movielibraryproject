@@ -1,0 +1,1 @@
+{% if ratings %}<div class="rating-strip" aria-label="Ratings">{% for rating in ratings %}<span><b>{{ rating.get_source_display }}</b> {{ rating.raw_score|default:rating.score }}</span>{% endfor %}</div>{% else %}<p class="rating-empty">Ratings unavailable</p>{% endif %}

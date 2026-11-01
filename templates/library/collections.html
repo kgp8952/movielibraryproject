@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block title %}Collections · Kino{% endblock %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">Personal library</p><h1>Collections</h1></section><form method="post" action="{% url 'collection-create' %}" class="create-collection">{% csrf_token %}<label for="collection-name">New collection</label><input id="collection-name" name="name" maxlength="100" required placeholder="e.g. Films to revisit"><button class="button" type="submit">Create</button></form>
+{% for collection in collections %}<section class="collection-section"><div class="section-heading"><h2>{{ collection.name }}</h2><span>{{ collection.movies.count }} movies</span></div>{% if collection.description %}<p class="muted">{{ collection.description }}</p>{% endif %}{% if collection.movies.all %}<ul class="inline-list">{% for movie in collection.movies.all %}<li><a href="{% url 'movie-detail' movie.pk %}">{{ movie.title_en|default:movie.title_original }}</a></li>{% endfor %}</ul>{% else %}<p class="muted">No movies in this collection.</p>{% endif %}</section>{% empty %}<p class="empty-state">Create a collection to group films your way.</p>{% endfor %}
+{% endblock %}
