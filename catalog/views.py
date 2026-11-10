@@ -7,13 +7,13 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.core.paginator import Paginator
-from django.db.models import DecimalField, Exists, Min, OuterRef, Prefetch, Q, Subquery
+from django.db.models import DecimalField, Exists, Max, Min, OuterRef, Prefetch, Q, Subquery
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from catalog.models import DiscRelease, Genre, Movie, Rating, ReleaseDate, StreamingAvailability
-from library.models import Collection, CollectionItem, LibraryEntry
+from catalog.models import Credit, DiscRelease, Genre, Movie, Person, Rating, ReleaseDate, StreamingAvailability
+from library.models import Collection, CollectionItem, LibraryEntry, OwnedDisc, UserSettings
 
 
 def _movies_with_rating_strips(queryset):
@@ -54,7 +54,8 @@ def _release_shelf(release_type, *, country, start_date=None, end_date=None, fut
 
 def home(request):
     today = timezone.localdate()
-    country = request.GET.get("country", "uz").lower()
+    user_country = UserSettings.objects.filter(user=request.user).values_list("preferred_country", flat=True).first() if request.user.is_authenticated else "uz"
+    country = request.GET.get("country", user_country).lower()
     if country not in {"uz", "ru", "us"}:
         country = "uz"
     shelves = [
@@ -101,12 +102,15 @@ def browse(request):
             | Q(title_uz__icontains=search_term)
         )
 
-    genre = request.GET.get("genre", "").strip()
-    if genre:
-        queryset = queryset.filter(genres__slug=genre)
-    year = request.GET.get("year", "").strip()
-    if year.isdigit():
-        queryset = queryset.filter(release_year=int(year))
+    genres = request.GET.getlist("genre")
+    if genres:
+        queryset = queryset.filter(genres__slug__in=genres).distinct()
+    year_min = request.GET.get("year_min", "").strip()
+    if year_min.isdigit():
+        queryset = queryset.filter(release_year__gte=int(year_min))
+    year_max = request.GET.get("year_max", "").strip()
+    if year_max.isdigit():
+        queryset = queryset.filter(release_year__lte=int(year_max))
     language = request.GET.get("language", "").strip()
     if language:
         queryset = queryset.filter(original_language__iexact=language)
@@ -115,7 +119,7 @@ def browse(request):
     if imdb_score:
         try:
             minimum = Decimal(imdb_score)
-            if Decimal("0") <= minimum <= Decimal("100"):
+            if Decimal("0") < minimum <= Decimal("100"):
                 latest_imdb = Rating.objects.filter(
                     movie_id=OuterRef("pk"), source=Rating.Source.IMDB
                 ).order_by("-fetched_at").values("score")[:1]
@@ -136,13 +140,27 @@ def browse(request):
         )
         queryset = queryset.annotate(has_streaming=Exists(availability)).filter(has_streaming=True)
 
-    sort_options = {
-        "title": "title_original",
-        "year_desc": "-release_year",
-        "year_asc": "release_year",
+    score_subqueries = {
+        "imdb": Rating.Source.IMDB,
+        "kinopoisk": Rating.Source.KINOPOISK,
     }
-    sort = request.GET.get("sort", "title")
-    queryset = queryset.order_by(sort_options.get(sort, "title_original"), "pk").distinct()
+    sort = request.GET.get("sort", "release_desc")
+    if sort in score_subqueries:
+        latest_score = Rating.objects.filter(
+            movie_id=OuterRef("pk"), source=score_subqueries[sort]
+        ).order_by("-fetched_at").values("score")[:1]
+        queryset = queryset.annotate(sort_score=Subquery(
+            latest_score, output_field=DecimalField(max_digits=5, decimal_places=2)
+        )).order_by("-sort_score", "title_original")
+    else:
+        if sort in {"release_desc", "release_asc"}:
+            queryset = queryset.annotate(sort_release_date=Max("release_dates__release_date"))
+            direction = "-" if sort == "release_desc" else ""
+            queryset = queryset.order_by(f"{direction}sort_release_date", "title_original")
+        else:
+            sort_options = {"title": "title_original", "popularity": "-popularity"}
+            queryset = queryset.order_by(sort_options.get(sort, "title_original"), "pk")
+    queryset = queryset.distinct()
     paginator = Paginator(queryset, 24)
     page_obj = paginator.get_page(request.GET.get("page"))
     page_obj.object_list = _movies_with_rating_strips(page_obj.object_list)
@@ -151,6 +169,7 @@ def browse(request):
     return render(request, "catalog/browse.html", {
         "page_obj": page_obj,
         "genres": Genre.objects.order_by("name"),
+        "selected_genres": genres,
         "sort": sort,
         "querystring": query_params.urlencode(),
         "streaming_countries": settings.DEFAULT_STREAMING_COUNTRIES,
@@ -171,21 +190,85 @@ def movie_detail(request, pk):
     )
     library_entry = None
     collections = []
+    owned_discs = []
+    settings_country = "uz"
     if request.user.is_authenticated:
         library_entry = LibraryEntry.objects.filter(user=request.user, movie=movie).first()
         collections = Collection.objects.filter(user=request.user).order_by("name")
+        owned_discs = OwnedDisc.objects.filter(user=request.user, movie=movie).values_list("release_id", flat=True)
+        settings_country = UserSettings.objects.filter(user=request.user).values_list("preferred_country", flat=True).first() or "uz"
+    latest_ratings = {}
+    for rating in movie.ratings.all():
+        latest_ratings.setdefault(rating.source, rating)
+    imdb_history = list(movie.ratings.filter(source=Rating.Source.IMDB).order_by("fetched_at"))
+    rating_rows = [
+        {"source": source, "label": label, "rating": latest_ratings.get(source)}
+        for source, label in Rating.Source.choices
+    ]
     return render(request, "catalog/detail.html", {
         "movie": movie,
         "credits": movie.credits.select_related("person").all(),
+        "cast": movie.credits.filter(role=Credit.Role.CAST).select_related("person").order_by("credit_order")[:10],
+        "directors": movie.credits.filter(role=Credit.Role.DIRECTOR).select_related("person"),
+        "writers": movie.credits.filter(role=Credit.Role.WRITER).select_related("person"),
         "ratings": movie.ratings.all(),
+        "latest_ratings": latest_ratings,
+        "rating_rows": rating_rows,
+        "imdb_history_count": len(imdb_history),
+        "imdb_chart": {
+            "labels": [rating.fetched_at.strftime("%Y-%m-%d") for rating in imdb_history],
+            "scores": [float(rating.score) / 10 for rating in imdb_history],
+        },
         "release_dates": movie.release_dates.all(),
         "disc_releases": movie.disc_releases.all(),
-        "streaming_options": movie.streaming_options.all(),
+        "streaming_options": movie.streaming_options.filter(country=settings_country),
+        "streaming_country": settings_country,
         "library_entry": library_entry,
+        "owned_release_ids": list(owned_discs),
         "collections": collections,
         "collection_items": CollectionItem.objects.filter(
             collection__user=request.user, movie=movie
         ).select_related("collection") if request.user.is_authenticated else [],
+    })
+
+
+def person_detail(request, pk):
+    person = get_object_or_404(Person, pk=pk)
+    credits = Credit.objects.filter(person=person).select_related("movie").order_by(
+        "-movie__release_year", "movie__title_original"
+    )
+    movies = list(Movie.objects.filter(credits__person=person).distinct().order_by(
+        "-release_year", "title_original"
+    ))
+    movies = _movies_with_rating_strips(movies)
+    return render(request, "catalog/person.html", {
+        "person": person,
+        "credits": credits,
+        "movies": movies,
+    })
+
+
+def compare(request):
+    selected_ids = request.GET.getlist("movie")[:4]
+    movies = list(Movie.objects.filter(pk__in=selected_ids).prefetch_related(
+        "ratings", "release_dates", "disc_releases", "genres"
+    ))
+    order = {str(value): index for index, value in enumerate(selected_ids)}
+    movies.sort(key=lambda movie: order.get(str(movie.pk), len(order)))
+    for movie in movies:
+        movie.latest_ratings = {}
+        for rating in movie.ratings.all():
+            movie.latest_ratings.setdefault(rating.source, rating)
+        movie.rating_rows = [
+            {"label": label, "rating": movie.latest_ratings.get(source)}
+            for source, label in Rating.Source.choices
+        ]
+        movie.latest_release = movie.release_dates.order_by("-release_date").first()
+        movie.disc_formats = list(movie.disc_releases.values_list("disc_format", flat=True).distinct())
+    return render(request, "catalog/compare.html", {
+        "movies": movies,
+        "movie_options": Movie.objects.order_by("title_original"),
+        "selected_ids": [str(movie.pk) for movie in movies],
     })
 
 
@@ -205,7 +288,15 @@ def register(request):
 def update_library_entry(request, pk):
     movie = get_object_or_404(Movie, pk=pk)
     action = request.POST.get("action")
-    if action not in {"watchlist", "watched", "favorite", "remove"}:
+    if action == "rate":
+        try:
+            personal_rating = int(request.POST.get("personal_rating", ""))
+        except ValueError:
+            personal_rating = 0
+        if not 1 <= personal_rating <= 10:
+            messages.error(request, "Personal ratings must be between 1 and 10.")
+            return redirect("movie-detail", pk=movie.pk)
+    elif action not in {"watchlist", "watched", "favorite", "remove"}:
         messages.error(request, "Choose a valid library action.")
         return redirect("movie-detail", pk=movie.pk)
     entry, _ = LibraryEntry.objects.get_or_create(user=request.user, movie=movie)
@@ -217,6 +308,8 @@ def update_library_entry(request, pk):
         entry.watched_at = timezone.localdate()
     elif action == "favorite":
         entry.is_favorite = not entry.is_favorite
+    elif action == "rate":
+        entry.personal_rating = personal_rating
     elif action == "remove":
         entry.delete()
         messages.success(request, "Removed from your library.")

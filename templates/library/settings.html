@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Settings · Kino{% endblock %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">Account / {{ user.username }}</p><h1>Settings</h1></section>
+<form method="post" class="settings-form">{% csrf_token %}<section class="content-section"><h2>Preferences</h2><p class="muted">Country is used for release and streaming availability defaults. Language is saved as a preference; interface translations are not wired yet.</p>{% for field in form %}<div class="settings-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}<button class="button" type="submit">Save settings</button></section></form>
+<section class="content-section"><div class="section-heading"><h2>Provider configuration</h2><span class="muted">Environment credentials</span></div><p class="muted">Provider credentials are configured by the application operator in .env and are shared by sync jobs.</p><div class="provider-status-list">{% for name, configured in providers %}<div><span>{{ name }}</span><span class="status-pill {% if configured %}status-succeeded{% else %}status-muted{% endif %}">{% if configured %}Configured{% else %}Not configured{% endif %}</span></div>{% endfor %}</div><p class="notice-line">Per-user provider toggles are not available because provider access is application-wide.</p></section>
+{% endblock %}

@@ -4,19 +4,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101513">
   <title>{% block title %}Kino{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'kino.css' %}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   <header class="site-header"><div class="header-inner">
-    <a class="wordmark" href="{% url 'home' %}">kino<span>.</span></a>
-    <nav aria-label="Main navigation"><a href="{% url 'movie-browse' %}">Browse</a>{% if user.is_authenticated %}<a href="{% url 'library' %}">My library</a><a href="{% url 'collections' %}">Collections</a>{% endif %}</nav>
-    <div class="account-nav">{% if user.is_authenticated %}<span>{{ user.username }}</span><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Sign out</button></form>{% else %}<a href="{% url 'login' %}">Sign in</a><a class="button button-small" href="{% url 'register' %}">Create account</a>{% endif %}</div>
+    <a class="wordmark" href="{% url 'home' %}" aria-label="Kino home">KINO<span>/</span></a>
+    <form class="global-search" method="get" action="{% url 'movie-browse' %}" role="search"><label class="visually-hidden" for="global-search">Search movies</label><input id="global-search" name="q" type="search" value="{{ request.GET.q }}" placeholder="Search movies"><button type="submit" aria-label="Submit search">⌕</button></form>
+    <nav aria-label="Main navigation"><a href="{% url 'home' %}">Home</a><a href="{% url 'movie-browse' %}">Browse</a><a href="{% url 'library' %}">Library</a><a href="{% url 'compare' %}">Compare</a><a href="{% url 'sync-status' %}">Sync</a><a href="{% url 'settings' %}">Settings</a></nav>
+    <div class="account-nav">{% if user.is_authenticated %}<a class="profile-link" href="{% url 'settings' %}"><span class="profile-dot">{{ user.username|first|upper }}</span><span>{{ user.username }}</span></a><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Log out</button></form>{% else %}<a href="{% url 'login' %}">Log in</a><a class="button button-small" href="{% url 'register' %}">Register</a>{% endif %}</div>
   </div></header>
   <main class="page-shell">
     {% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<p class="message {{ message.tags }}">{{ message }}</p>{% endfor %}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
-  <footer class="site-footer"><span>Kino</span><span>Personal film library</span></footer>
+  <footer class="site-footer"><div class="footer-brand"><a class="wordmark" href="{% url 'home' %}">KINO<span>/</span></a><span>Personal film library</span></div><div class="attribution"><a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer"><img src="https://cdn.simpleicons.org/themoviedatabase/01B4E4" alt="TMDB"></a><span>This product uses the TMDB API but is not endorsed or certified by TMDB.</span><span>Streaming availability data by <a href="https://www.justwatch.com/" target="_blank" rel="noreferrer">JustWatch</a>.</span></div></footer>
+  {% block scripts %}{% endblock %}
 </body>
 </html>

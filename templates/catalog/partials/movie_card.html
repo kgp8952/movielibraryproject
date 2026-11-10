@@ -1,0 +1,4 @@
+<article class="movie-card">
+  <a class="card-poster" href="{% url 'movie-detail' movie.pk %}">{% if movie.poster_path %}<img src="{{ movie.poster_path }}" alt="Poster for {{ movie.title_original }}" loading="lazy">{% else %}<span>Poster unavailable</span>{% endif %}<span class="card-year">{{ movie.release_year|default:"—" }}</span></a>
+  <div class="card-copy"><h2><a href="{% url 'movie-detail' movie.pk %}">{{ movie.title_en|default:movie.title_original }}</a></h2><p class="original-line">{{ movie.title_original }}</p>{% include "catalog/partials/rating_strip.html" with ratings=movie.rating_strip %}</div>
+</article>

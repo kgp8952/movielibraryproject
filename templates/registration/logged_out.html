@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}Signed out · Kino{% endblock %}
+{% block content %}<section class="auth-panel"><p class="eyebrow">Account</p><h1>Signed out</h1><p class="muted">Your session has ended.</p><a class="button" href="{% url 'login' %}">Log in again</a></section>{% endblock %}

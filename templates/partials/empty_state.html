@@ -1,0 +1,5 @@
+<div class="empty-editorial" role="status">
+  <span class="film-divider" aria-hidden="true"></span>
+  <div class="empty-editorial-copy"><p>{{ message }}</p><span>{{ helper|default:"When matching records are added, they will appear here." }}</span></div>
+  <div class="empty-editorial-actions"><a class="button button-empty" href="{{ action_url }}">{{ action_label|default:"Browse" }}</a>{% if secondary_url %}<a class="quiet-link" href="{{ secondary_url }}">{{ secondary_label }}</a>{% endif %}</div>
+</div>

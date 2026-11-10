@@ -5,8 +5,8 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from catalog.models import DiscRelease, Genre, Movie, Rating, ReleaseDate, StreamingAvailability
-from library.models import Collection, CollectionItem, LibraryEntry
+from catalog.models import Credit, DiscRelease, Genre, Movie, Person, Rating, ReleaseDate, StreamingAvailability
+from library.models import Collection, CollectionItem, LibraryEntry, OwnedDisc, UserSettings
 
 
 class CatalogPageTests(TestCase):
@@ -47,7 +47,8 @@ class CatalogPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "A stored overview.")
         self.assertContains(response, "8.1/10")
-        self.assertContains(response, "Streaming availability not available.")
+        self.assertContains(response, "No availability recorded for UZ.")
+        self.assertEqual(response.context["imdb_chart"]["scores"], [8.1])
 
     def test_authenticated_user_can_update_watchlist_and_collection(self):
         self.client.force_login(self.user)
@@ -105,3 +106,38 @@ class CatalogPageTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["page_obj"].paginator.count, 1)
+
+    def test_person_compare_sync_settings_and_library_pages_render(self):
+        person = Person.objects.create(name="A Film-maker", biography="A local biography.")
+        Credit.objects.create(movie=self.movie, person=person, role=Credit.Role.CAST, character_name="Self")
+        self.client.force_login(self.user)
+
+        self.assertContains(self.client.get(reverse("person-detail", args=[person.pk])), "A local biography.")
+        self.assertEqual(
+            self.client.get(reverse("compare"), {"movie": [self.movie.pk]}).status_code,
+            200,
+        )
+        self.assertEqual(self.client.get(reverse("sync-status")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("settings")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("collections")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("library")).status_code, 200)
+
+    def test_settings_owned_discs_and_csv_are_saved_or_exported(self):
+        self.client.force_login(self.user)
+        settings_response = self.client.post(reverse("settings"), {
+            "preferred_country": "ru",
+            "interface_language": "ru",
+        })
+        preferences = UserSettings.objects.get(user=self.user)
+        self.assertEqual(settings_response.status_code, 302)
+        self.assertEqual(preferences.preferred_country, "ru")
+
+        disc = DiscRelease.objects.create(
+            movie=self.movie,
+            disc_format=DiscRelease.Format.UHD_4K,
+            hdr_formats=["Dolby Vision"],
+        )
+        self.client.post(reverse("owned-disc-toggle", args=[self.movie.pk]), {"release_id": disc.pk})
+        self.assertTrue(OwnedDisc.objects.filter(user=self.user, movie=self.movie, release=disc).exists())
+        self.assertEqual(self.client.get(reverse("library-export")).status_code, 200)
+        self.assertIn("text/csv", self.client.get(reverse("library-export")).headers["Content-Type"])

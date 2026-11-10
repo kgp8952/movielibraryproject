@@ -2,6 +2,26 @@ from django.conf import settings
 from django.db import models
 
 
+class UserSettings(models.Model):
+    class Country(models.TextChoices):
+        UZ = "uz", "Uzbekistan"
+        RU = "ru", "Russia"
+        US = "us", "United States"
+
+    class Language(models.TextChoices):
+        EN = "en", "English"
+        RU = "ru", "Russian"
+        UZ = "uz", "Uzbek"
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="kino_settings")
+    preferred_country = models.CharField(max_length=2, choices=Country.choices, default=Country.UZ)
+    interface_language = models.CharField(max_length=2, choices=Language.choices, default=Language.EN)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Settings for {self.user}"
+
+
 class LibraryEntry(models.Model):
     class Status(models.TextChoices):
         WATCHLIST = "watchlist", "Watchlist"

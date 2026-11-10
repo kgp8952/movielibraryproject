@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name }} · Kino{% endblock %}
+{% block content %}
+<p class="breadcrumbs"><a href="{% url 'movie-browse' %}">Browse</a><span>/</span>People</p>
+<section class="person-hero"><div class="person-large-photo">{% if person.profile_path %}<img src="{{ person.profile_path }}" alt="Photo of {{ person.name }}">{% else %}<span>{{ person.name|first }}</span>{% endif %}</div><div><p class="eyebrow">Person / local catalogue</p><h1>{{ person.name }}</h1><p class="bio-copy">{{ person.biography|default:"Biography unavailable in the local catalogue." }}</p></div></section>
+<section class="content-section"><div class="section-heading"><div><h2>Filmography in Kino</h2><span class="muted">{{ movies|length }} titles</span></div><button class="button button-secondary" type="button" disabled title="Person filmography import is not available">Import unavailable</button></div>{% if movies %}<div class="movie-grid">{% for movie in movies %}{% include "catalog/partials/movie_card.html" with movie=movie %}{% endfor %}</div>{% else %}{% include "partials/empty_state.html" with message="No local film credits found." helper="This list reflects films already linked in Kino." action_url="/browse/" action_label="Browse films" %}{% endif %}</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Compare movies · Kino{% endblock %}
+{% block content %}
+<section class="page-heading"><p class="eyebrow">Catalog tool</p><h1>Compare films</h1></section>
+<form class="compare-picker" method="get" data-compare-picker><label for="movie-select">Select 2–4 titles</label><select id="movie-select" name="movie" multiple size="7">{% for option in movie_options %}<option value="{{ option.pk }}" {% if option.pk|stringformat:"s" in selected_ids %}selected{% endif %}>{{ option.title_en|default:option.title_original }}{% if option.release_year %} · {{ option.release_year }}{% endif %}</option>{% endfor %}</select><div><button class="button" type="submit">Compare selection</button><p class="form-hint" data-compare-error hidden>Select no more than four films.</p></div></form>
+{% if movies|length >= 2 %}<div class="compare-table-wrap"><table class="compare-table"><thead><tr><th>Attribute</th>{% for movie in movies %}<th><a href="{% url 'movie-detail' movie.pk %}">{{ movie.title_en|default:movie.title_original }}</a><small>{{ movie.release_year|default:"—" }}</small></th>{% endfor %}</tr></thead><tbody>
+<tr><th>Runtime</th>{% for movie in movies %}<td>{% if movie.runtime_minutes %}{{ movie.runtime_minutes }} min{% else %}—{% endif %}</td>{% endfor %}</tr>
+<tr><th>IMDb</th>{% for movie in movies %}<td>{{ movie.latest_ratings.imdb.score|default:"—" }}</td>{% endfor %}</tr>
+{% for source in movies.0.rating_rows %}<tr><th>{{ source.label }}</th>{% for movie in movies %}<td>{% for rating_row in movie.rating_rows %}{% if rating_row.label == source.label %}{% if rating_row.rating %}{{ rating_row.rating.raw_score|default:rating_row.rating.score }} <small>{{ rating_row.rating.score }}/100</small>{% else %}—{% endif %}{% endif %}{% endfor %}</td>{% endfor %}</tr>{% endfor %}
+<tr><th>Genres</th>{% for movie in movies %}<td>{% for genre in movie.genres.all %}{{ genre.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>{% endfor %}</tr>
+<tr><th>Latest release</th>{% for movie in movies %}<td>{% if movie.latest_release %}{{ movie.latest_release.get_release_type_display }} · {{ movie.latest_release.country|upper }}<small>{{ movie.latest_release.release_date|date:"Y-m-d" }}</small>{% else %}—{% endif %}</td>{% endfor %}</tr>
+<tr><th>Disc formats</th>{% for movie in movies %}<td>{% for format in movie.disc_formats %}{{ format|upper }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}</td>{% endfor %}</tr>
+</tbody></table></div>{% elif movies %}{% include "partials/empty_state.html" with message="Choose one more film." helper="A side-by-side view starts with two titles." action_url="/browse/" action_label="Browse films" %}{% else %}{% include "partials/empty_state.html" with message="Choose films to compare." helper="Comparison uses titles and details already stored in Kino." action_url="/browse/" action_label="Browse films" %}{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'kino.js' %}" defer></script>{% endblock %}

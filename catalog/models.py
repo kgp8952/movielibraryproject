@@ -26,10 +26,13 @@ class Movie(models.Model):
     original_language = models.CharField(max_length=12, blank=True)
     release_year = models.PositiveSmallIntegerField(null=True, blank=True)
     runtime_minutes = models.PositiveSmallIntegerField(null=True, blank=True)
+    certification = models.CharField(max_length=16, blank=True)
+    popularity = models.DecimalField(max_digits=12, decimal_places=4, default=0)
     overview_en = models.TextField(blank=True)
     overview_ru = models.TextField(blank=True)
     overview_uz = models.TextField(blank=True)
     poster_path = models.URLField(max_length=500, blank=True)
+    backdrop_path = models.URLField(max_length=500, blank=True)
     genres = models.ManyToManyField(Genre, related_name="movies", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -52,6 +55,7 @@ class Person(models.Model):
     tmdb_id = models.PositiveIntegerField(null=True, blank=True, unique=True)
     name = models.CharField(max_length=255)
     profile_path = models.URLField(max_length=500, blank=True)
+    biography = models.TextField(blank=True)
 
     class Meta:
         ordering = ["name"]
