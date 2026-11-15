@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 
 class Genre(models.Model):
@@ -107,7 +108,7 @@ class Rating(models.Model):
     raw_score = models.CharField(max_length=32, blank=True)
     vote_count = models.PositiveIntegerField(null=True, blank=True)
     snapshot_key = models.CharField(max_length=160, unique=True, null=True, blank=True)
-    fetched_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    fetched_at = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ["-fetched_at"]

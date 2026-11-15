@@ -43,6 +43,7 @@ def append_rating_snapshot(movie: Movie, data: dict, *, run_key: str) -> tuple[R
             "score": score,
             "raw_score": str(data.get("raw_score", ""))[:32],
             "vote_count": data.get("vote_count"),
+            **({"fetched_at": data["fetched_at"]} if data.get("fetched_at") else {}),
         },
     )
 

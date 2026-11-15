@@ -152,6 +152,8 @@ def export_library(request):
     status = request.GET.get("status", "")
     if status in LibraryEntry.Status.values:
         entries = entries.filter(status=status)
+    elif status == "favorites":
+        entries = entries.filter(is_favorite=True)
     response = HttpResponse(content_type="text/csv; charset=utf-8")
     response["Content-Disposition"] = 'attachment; filename="kino-library.csv"'
     response.write("\ufeff")

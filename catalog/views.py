@@ -218,11 +218,17 @@ def movie_detail(request, pk):
     collections = []
     owned_discs = []
     settings_country = "uz"
+    interface_language = "en"
     if request.user.is_authenticated:
         library_entry = LibraryEntry.objects.filter(user=request.user, movie=movie).first()
         collections = Collection.objects.filter(user=request.user).order_by("name")
         owned_discs = OwnedDisc.objects.filter(user=request.user, movie=movie).values_list("release_id", flat=True)
-        settings_country = UserSettings.objects.filter(user=request.user).values_list("preferred_country", flat=True).first() or "uz"
+        preferences = UserSettings.objects.filter(user=request.user).first()
+        if preferences:
+            settings_country = preferences.preferred_country
+            interface_language = preferences.interface_language
+    title_by_language = {"en": movie.title_en, "ru": movie.title_ru, "uz": movie.title_uz}
+    movie.display_title = title_by_language.get(interface_language) or movie.title_en or movie.title_original
     latest_ratings = {}
     for rating in movie.ratings.all():
         latest_ratings.setdefault(rating.source, rating)

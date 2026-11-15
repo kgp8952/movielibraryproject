@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from catalog.providers.base import ProviderQuotaExceeded, ProviderUnavailable
 from sync.models import SyncJob
-from sync.services import dispatch_job, enqueue_job, enqueue_scheduled_jobs, process_next_job
+from sync.services import claim_next_job, dispatch_job, enqueue_job, enqueue_scheduled_jobs, process_next_job
 
 
 class SyncSchedulingTests(TestCase):
@@ -93,3 +93,18 @@ class SyncExecutionTests(TestCase):
         self.assertIn("temporary outage", processed.last_error)
         self.assertGreater(processed.available_at, timezone.now())
         dispatch.assert_called_once()
+
+    def test_worker_reclaims_stale_running_job_after_restart(self):
+        job = self.create_job()
+        job.status = SyncJob.Status.RUNNING
+        job.started_at = timezone.now() - timedelta(minutes=45)
+        job.save(update_fields=["status", "started_at"])
+
+        claimed = claim_next_job()
+
+        job.refresh_from_db()
+        self.assertEqual(claimed.pk, job.pk)
+        self.assertEqual(job.status, SyncJob.Status.RUNNING)
+        self.assertEqual(job.attempts, 1)
+        self.assertEqual(job.idempotency_key, "test:job")
+        self.assertIn("Recovered", job.last_error)

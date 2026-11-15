@@ -210,6 +210,19 @@ def _run_disc_refresh(job: SyncJob) -> int:
     return updated
 
 
+def requeue_stale_jobs(*, stale_after: timedelta = timedelta(minutes=30)) -> int:
+    now = timezone.now()
+    return SyncJob.objects.filter(
+        status=SyncJob.Status.RUNNING,
+        started_at__lt=now - stale_after,
+    ).update(
+        status=SyncJob.Status.QUEUED,
+        available_at=now,
+        started_at=None,
+        last_error="Recovered after worker interruption; retrying idempotently.",
+    )
+
+
 def dispatch_job(job: SyncJob):
     if job.kind in {SyncJob.Kind.NOW_PLAYING, SyncJob.Kind.UPCOMING, SyncJob.Kind.POPULAR}:
         return _run_movie_list(job)
@@ -225,6 +238,7 @@ def dispatch_job(job: SyncJob):
 
 
 def claim_next_job():
+    requeue_stale_jobs()
     now = timezone.now()
     with transaction.atomic():
         job = SyncJob.objects.filter(
