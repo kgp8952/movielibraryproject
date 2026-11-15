@@ -56,40 +56,53 @@ def _release_shelf(release_type, *, country, start_date=None, end_date=None, fut
     ).order_by("shelf_date", "title_original").distinct()[:8]
 
 
+def _release_shelf_fallback(release_type, *, country, start_date=None, end_date=None, future=False):
+    markets = list(settings.DEFAULT_STREAMING_COUNTRIES)
+    if country in markets:
+        markets = markets[markets.index(country):]
+    else:
+        markets = [country, *[market for market in markets if market != country]]
+    for market in markets:
+        movies = list(_release_shelf(
+            release_type,
+            country=market,
+            start_date=start_date,
+            end_date=end_date,
+            future=future,
+        ))
+        if movies:
+            return movies, market
+    return [], country
+
+
 def home(request):
     today = timezone.localdate()
     user_country = UserSettings.objects.filter(user=request.user).values_list("preferred_country", flat=True).first() if request.user.is_authenticated else "uz"
     country = request.GET.get("country", user_country).lower()
     if country not in {"uz", "ru", "us"}:
         country = "uz"
-    shelves = [
-        ("In cinemas now", _release_shelf(
-            ReleaseDate.ReleaseType.THEATRICAL,
-            country=country,
-            start_date=today - timedelta(days=60),
-        )),
-        ("New on digital", _release_shelf(
-            ReleaseDate.ReleaseType.DIGITAL,
-            country=country,
-            start_date=today - timedelta(days=30),
-        )),
-        ("New on disc", _release_shelf(
-            ReleaseDate.ReleaseType.PHYSICAL,
-            country=country,
-            start_date=today - timedelta(days=60),
-        )),
-        ("Coming soon", _release_shelf(
-            ReleaseDate.ReleaseType.THEATRICAL,
-            country=country,
-            future=True,
-        )),
+    shelves = []
+    shelf_specs = [
+        ("In cinemas now", ReleaseDate.ReleaseType.THEATRICAL, today - timedelta(days=60), None, False),
+        ("New on digital", ReleaseDate.ReleaseType.DIGITAL, today - timedelta(days=30), None, False),
+        ("New on disc", ReleaseDate.ReleaseType.PHYSICAL, today - timedelta(days=60), None, False),
+        ("Coming soon", ReleaseDate.ReleaseType.THEATRICAL, None, None, True),
     ]
+    for title, release_type, start_date, end_date, future in shelf_specs:
+        movies, shelf_country = _release_shelf_fallback(
+            release_type,
+            country=country,
+            start_date=start_date,
+            end_date=end_date,
+            future=future,
+        )
+        shelves.append((title, movies, shelf_country))
     all_movies = []
-    for _, movies in shelves:
+    for _, movies, _ in shelves:
         all_movies.extend(movies)
     rating_movies = _movies_with_rating_strips({movie.pk: movie for movie in all_movies}.values())
     rating_map = {movie.pk: movie.rating_strip for movie in rating_movies}
-    for _, movies in shelves:
+    for _, movies, _ in shelves:
         for movie in movies:
             movie.rating_strip = rating_map.get(movie.pk, [])
     return render(request, "catalog/home.html", {"shelves": shelves, "country": country})

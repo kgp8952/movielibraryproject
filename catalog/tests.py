@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import httpx
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, transaction
 from django.test import TestCase
 
 from catalog.models import Movie, Rating
@@ -23,6 +23,15 @@ class RatingHistoryTests(TestCase):
         rating.score = Decimal("90.00")
         with self.assertRaises(ValidationError):
             rating.save()
+
+    def test_bulk_update_cannot_bypass_append_only_rule(self):
+        rating = Rating.objects.create(
+            movie=self.movie,
+            source=Rating.Source.IMDB,
+            score=Decimal("82.50"),
+        )
+        with self.assertRaises(DatabaseError):
+            Rating.objects.filter(pk=rating.pk).update(score=Decimal("90.00"))
 
     def test_snapshot_key_prevents_retry_duplicates(self):
         Rating.objects.create(

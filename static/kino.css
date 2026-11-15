@@ -779,6 +779,7 @@ body {
 .shelf-heading h2 { margin: 0; color: #eee5db; font: 500 31px/1.05 var(--font-display); }
 .shelf-heading > a { color: #b4a89a; font-size: 12px; white-space: nowrap; }
 .shelf-heading > a:hover { color: #e3a34d; }
+.fallback-note { display: block; margin-top: 3px; color: #aaa096; font-size: 11px; }
 .movie-shelf, .movie-grid { align-items: start; gap: 18px; }
 .movie-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; overflow: visible; }
 .movie-card:hover { transform: translateY(-3px); border: 0; box-shadow: none; }

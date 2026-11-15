@@ -40,6 +40,20 @@ class CatalogPageTests(TestCase):
         self.assertContains(browse_response, "Sample Film")
         self.assertEqual(browse_response.context["page_obj"].paginator.count, 1)
 
+    def test_home_falls_back_from_uz_to_ru_per_shelf(self):
+        ReleaseDate.objects.create(
+            movie=self.movie,
+            country="ru",
+            release_type=ReleaseDate.ReleaseType.THEATRICAL,
+            release_date=timezone.localdate(),
+        )
+
+        response = self.client.get(reverse("home"), {"country": "uz"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["shelves"][0][2], "ru")
+        self.assertContains(response, "Showing RU dates")
+
     def test_detail_shows_available_data_and_missing_data_fallbacks(self):
         Rating.objects.create(movie=self.movie, source=Rating.Source.IMDB, score=81, raw_score="8.1/10")
 
@@ -50,6 +64,18 @@ class CatalogPageTests(TestCase):
         self.assertContains(response, "8.1/10")
         self.assertContains(response, "No availability recorded for UZ.")
         self.assertEqual(response.context["imdb_chart"]["scores"], [8.1])
+
+    def test_detail_title_uses_preferred_language_then_english_fallback(self):
+        UserSettings.objects.create(user=self.user, interface_language="ru")
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("movie-detail", args=[self.movie.pk]))
+        self.assertEqual(response.context["movie"].display_title, "Obrazets filma")
+
+        self.movie.title_ru = ""
+        self.movie.save(update_fields=["title_ru"])
+        response = self.client.get(reverse("movie-detail", args=[self.movie.pk]))
+        self.assertEqual(response.context["movie"].display_title, "Sample Film")
 
     def test_authenticated_user_can_update_watchlist_and_collection(self):
         self.client.force_login(self.user)
@@ -149,6 +175,9 @@ class CatalogPageTests(TestCase):
         self.assertTrue(OwnedDisc.objects.filter(user=self.user, movie=self.movie, release=disc).exists())
         self.assertEqual(self.client.get(reverse("library-export")).status_code, 200)
         self.assertIn("text/csv", self.client.get(reverse("library-export")).headers["Content-Type"])
+        LibraryEntry.objects.create(user=self.user, movie=self.movie, is_favorite=True)
+        favorites_csv = self.client.get(reverse("library-export"), {"status": "favorites"})
+        self.assertIn("Sample Film", favorites_csv.content.decode("utf-8-sig"))
 
     @patch("catalog.views.TMDBAdapter")
     def test_global_archive_search_renders_remote_matches(self, adapter_class):
