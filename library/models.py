@@ -2,6 +2,10 @@ from django.conf import settings
 from django.db import models
 
 
+def default_enabled_providers():
+    return {"tmdb": True, "omdb": True, "kinopoisk": True, "disc": True}
+
+
 class UserSettings(models.Model):
     class Country(models.TextChoices):
         UZ = "uz", "Uzbekistan"
@@ -16,6 +20,7 @@ class UserSettings(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="kino_settings")
     preferred_country = models.CharField(max_length=2, choices=Country.choices, default=Country.UZ)
     interface_language = models.CharField(max_length=2, choices=Language.choices, default=Language.EN)
+    enabled_providers = models.JSONField(default=default_enabled_providers)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):

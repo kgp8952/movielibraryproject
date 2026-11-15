@@ -7,6 +7,8 @@ class SyncJob(models.Model):
         UPCOMING = "upcoming", "Upcoming"
         POPULAR = "popular", "Popular"
         ENRICH_MOVIE = "enrich_movie", "Enrich movie"
+        IMPORT_TMDB_MOVIE = "import_tmdb_movie", "Import TMDB movie"
+        IMPORT_PERSON_FILMOGRAPHY = "import_person_filmography", "Import person filmography"
         REFRESH_RATINGS = "refresh_ratings", "Refresh ratings"
         REFRESH_DISCS = "refresh_discs", "Refresh discs"
 
@@ -17,7 +19,7 @@ class SyncJob(models.Model):
         FAILED = "failed", "Failed"
         DEFERRED = "deferred", "Deferred"
 
-    kind = models.CharField(max_length=24, choices=Kind.choices, db_index=True)
+    kind = models.CharField(max_length=32, choices=Kind.choices, db_index=True)
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.QUEUED, db_index=True)
     idempotency_key = models.CharField(max_length=160, unique=True, null=True, blank=True)
     payload = models.JSONField(default=dict, blank=True)
