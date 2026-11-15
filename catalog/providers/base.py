@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from time import monotonic
-from typing import Any
+from typing import Any, Mapping
 from urllib.parse import urljoin
 
 import httpx
@@ -51,6 +51,7 @@ class ProviderAdapter(ABC):
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
     ) -> dict[str, Any] | list[Any]:
         if self.provider_name == "omdb":
             self.assert_daily_quota(settings.OMDB_DAILY_LIMIT)
@@ -65,6 +66,7 @@ class ProviderAdapter(ABC):
                 url,
                 params=params,
                 json=json,
+                headers=headers,
                 timeout=httpx.Timeout(timeout, connect=min(timeout, 5.0)),
             )
             response.raise_for_status()
