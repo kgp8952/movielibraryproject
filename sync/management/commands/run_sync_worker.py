@@ -2,13 +2,12 @@ import time
 
 from django.core.management.base import BaseCommand
 from django.db.utils import OperationalError
-from django.utils import timezone
 
-from sync.models import SyncJob
+from sync.services import enqueue_scheduled_jobs, process_next_job
 
 
 class Command(BaseCommand):
-    help = "Poll for due sync jobs; provider handlers are added in the sync implementation step."
+    help = "Schedule and run Kino provider sync jobs."
 
     def add_arguments(self, parser):
         parser.add_argument("--poll-seconds", type=float, default=5.0)
@@ -18,19 +17,21 @@ class Command(BaseCommand):
         poll_seconds = max(0.25, options["poll_seconds"])
         self.stdout.write(self.style.SUCCESS("Kino sync worker started."))
         while True:
+            job = None
             try:
-                due_count = SyncJob.objects.filter(
-                    status=SyncJob.Status.QUEUED,
-                    available_at__lte=timezone.now(),
-                ).count()
-                if due_count:
-                    self.stdout.write(f"{due_count} due job(s) await registered handlers.")
+                scheduled = enqueue_scheduled_jobs()
+                job = process_next_job()
+                if scheduled:
+                    self.stdout.write(f"Scheduled {scheduled} sync job(s).")
+                if job:
+                    self.stdout.write(f"{job.kind}: {job.status} (attempt {job.attempts}).")
             except OperationalError:
                 self.stdout.write("Waiting for the shared SQLite database to be initialized.")
             if options["once"]:
                 break
-            try:
-                time.sleep(poll_seconds)
-            except KeyboardInterrupt:
-                self.stdout.write("Stopping Kino sync worker.")
-                break
+            if not job:
+                try:
+                    time.sleep(poll_seconds)
+                except KeyboardInterrupt:
+                    self.stdout.write("Stopping Kino sync worker.")
+                    break

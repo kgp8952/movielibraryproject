@@ -20,7 +20,8 @@ class TMDBAdapter(ProviderAdapter):
         params.setdefault("api_key", self.api_key)
         return super().request_json(method, path, params=params, json=json, headers=headers)
 
-    def normalize_movie(self, payload: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def normalize_movie(payload: dict[str, Any]) -> dict[str, Any]:
         release_date = payload.get("release_date") or ""
         return {
             "tmdb_id": payload.get("id"),
@@ -32,8 +33,8 @@ class TMDBAdapter(ProviderAdapter):
             "runtime_minutes": payload.get("runtime"),
             "overview_en": payload.get("overview") or "",
             "popularity": payload.get("popularity") or 0,
-            "poster_path": self.image_url(payload.get("poster_path")),
-            "backdrop_path": self.image_url(payload.get("backdrop_path")),
+            "poster_path": TMDBAdapter.image_url(payload.get("poster_path")),
+            "backdrop_path": TMDBAdapter.image_url(payload.get("backdrop_path")),
             "genre_data": payload.get("genres") or [],
         }
 
