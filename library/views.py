@@ -179,9 +179,10 @@ def settings_page(request):
         messages.success(request, "Settings saved.")
         return redirect("settings")
     providers = [
-        ("TMDB", bool(settings.TMDB_API_KEY)),
-        ("OMDb", bool(settings.OMDB_API_KEY)),
-        ("Kinopoisk", bool(settings.KINOPOISK_API_KEY)),
+        {"name": "TMDB", "configured": bool(settings.TMDB_API_KEY), "enabled": preferences.enabled_providers.get("tmdb", True)},
+        {"name": "OMDb", "configured": bool(settings.OMDB_API_KEY), "enabled": preferences.enabled_providers.get("omdb", True)},
+        {"name": "Kinopoisk", "configured": bool(settings.KINOPOISK_API_KEY), "enabled": preferences.enabled_providers.get("kinopoisk", True)},
+        {"name": "Disc catalogue", "configured": bool(settings.DISC_API_BASE_URL), "enabled": preferences.enabled_providers.get("disc", True)},
     ]
     return render(request, "library/settings.html", {"form": form, "providers": providers})
 

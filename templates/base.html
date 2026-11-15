@@ -15,7 +15,7 @@
 <body>
   <header class="site-header"><div class="header-inner">
     <a class="wordmark" href="{% url 'home' %}" aria-label="Kino home">KINO<span>/</span></a>
-    <form class="global-search" method="get" action="{% url 'movie-browse' %}" role="search"><label class="visually-hidden" for="global-search">Search movies</label><input id="global-search" name="q" type="search" value="{{ request.GET.q }}" placeholder="Search movies"><button type="submit" aria-label="Submit search">⌕</button></form>
+    <form class="global-search" method="get" action="{% url 'movie-browse' %}" role="search"><input type="hidden" name="source" value="all"><label class="visually-hidden" for="global-search">Search movies and the TMDB archive</label><input id="global-search" name="q" type="search" value="{{ request.GET.q }}" placeholder="Search films and archive"><button type="submit" aria-label="Submit search">⌕</button></form>
     <nav aria-label="Main navigation"><a href="{% url 'home' %}">Home</a><a href="{% url 'movie-browse' %}">Browse</a><a href="{% url 'library' %}">Library</a><a href="{% url 'compare' %}">Compare</a><a href="{% url 'sync-status' %}">Sync</a><a href="{% url 'settings' %}">Settings</a></nav>
     <div class="account-nav">{% if user.is_authenticated %}<a class="profile-link" href="{% url 'settings' %}"><span class="profile-dot">{{ user.username|first|upper }}</span><span>{{ user.username }}</span></a><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="text-button" type="submit">Log out</button></form>{% else %}<a href="{% url 'login' %}">Log in</a><a class="button button-small" href="{% url 'register' %}">Register</a>{% endif %}</div>
   </div></header>

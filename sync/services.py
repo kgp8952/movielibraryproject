@@ -86,7 +86,11 @@ def _run_movie_import(job: SyncJob) -> Movie:
     tmdb_id = int(job.payload.get("tmdb_id") or 0)
     if not tmdb_id:
         raise ValueError("The job requires a tmdb_id.")
-    return refresh_tmdb_movie(tmdb_id, run_key=job.idempotency_key or f"job:{job.pk}")
+    return refresh_tmdb_movie(
+        tmdb_id,
+        run_key=job.idempotency_key or f"job:{job.pk}",
+        enabled_providers=job.payload.get("enabled_providers"),
+    )
 
 
 def _run_person_filmography(job: SyncJob) -> int:
@@ -124,7 +128,11 @@ def _run_rating_refresh(job: SyncJob) -> int:
     limit = min(500, max(1, int(job.payload.get("limit", 100))))
     movie_ids = list(queryset.values_list("tmdb_id", flat=True)[:limit])
     for tmdb_id in movie_ids:
-        refresh_tmdb_movie(tmdb_id, run_key=f"{job.idempotency_key}:movie:{tmdb_id}")
+        refresh_tmdb_movie(
+            tmdb_id,
+            run_key=f"{job.idempotency_key}:movie:{tmdb_id}",
+            enabled_providers=job.payload.get("enabled_providers"),
+        )
     return len(movie_ids)
 
 

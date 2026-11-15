@@ -1,5 +1,6 @@
 from decimal import Decimal, InvalidOperation
 from datetime import timedelta
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib import messages
@@ -13,7 +14,10 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from catalog.models import Credit, DiscRelease, Genre, Movie, Person, Rating, ReleaseDate, StreamingAvailability
+from catalog.providers import ProviderError, TMDBAdapter
 from library.models import Collection, CollectionItem, LibraryEntry, OwnedDisc, UserSettings
+from sync.models import SyncJob
+from sync.services import enqueue_job
 
 
 def _movies_with_rating_strips(queryset):
@@ -164,6 +168,25 @@ def browse(request):
     paginator = Paginator(queryset, 24)
     page_obj = paginator.get_page(request.GET.get("page"))
     page_obj.object_list = _movies_with_rating_strips(page_obj.object_list)
+    tmdb_results = []
+    tmdb_search_unavailable = False
+    provider_preferences = _user_provider_settings(request.user)
+    if search_term and request.GET.get("source") == "all" and settings.TMDB_API_KEY and provider_preferences.get("tmdb", True):
+        try:
+            with TMDBAdapter() as adapter:
+                response = adapter.search_movies(search_term, page=1)
+            tmdb_results = [
+                {
+                    **result,
+                    "poster_url": TMDBAdapter.image_url(result.get("poster_path")),
+                    "year": (result.get("release_date") or "")[:4],
+                }
+                for result in response.get("results", [])
+            ]
+        except ProviderError:
+            tmdb_search_unavailable = True
+    elif search_term and request.GET.get("source") == "all":
+        tmdb_search_unavailable = True
     query_params = request.GET.copy()
     query_params.pop("page", None)
     return render(request, "catalog/browse.html", {
@@ -173,6 +196,9 @@ def browse(request):
         "sort": sort,
         "querystring": query_params.urlencode(),
         "streaming_countries": settings.DEFAULT_STREAMING_COUNTRIES,
+        "tmdb_results": tmdb_results,
+        "tmdb_search_unavailable": tmdb_search_unavailable,
+        "search_source": request.GET.get("source", "local"),
     })
 
 
@@ -281,6 +307,73 @@ def register(request):
         login(request, user)
         return redirect("home")
     return render(request, "registration/register.html", {"form": form})
+
+
+def _user_provider_settings(user):
+    if not user.is_authenticated:
+        return {"tmdb": True, "omdb": True, "kinopoisk": True, "disc": True}
+    preferences = UserSettings.objects.filter(user=user).values_list("enabled_providers", flat=True).first()
+    return preferences or {"tmdb": True, "omdb": True, "kinopoisk": True, "disc": True}
+
+
+@login_required
+@require_POST
+def queue_tmdb_import(request):
+    preferences = _user_provider_settings(request.user)
+    if not settings.TMDB_API_KEY or not preferences.get("tmdb", True):
+        messages.error(request, "TMDB search and import require an application API key.")
+        return redirect("movie-browse")
+    try:
+        tmdb_id = int(request.POST.get("tmdb_id", ""))
+    except ValueError:
+        messages.error(request, "Select a valid TMDB movie.")
+        return redirect("movie-browse")
+    enqueue_job(
+        SyncJob.Kind.IMPORT_TMDB_MOVIE,
+        payload={"tmdb_id": tmdb_id, "enabled_providers": preferences},
+        idempotency_key=f"manual:import:{request.user.pk}:{uuid4().hex}",
+    )
+    messages.success(request, "Movie import queued.")
+    return redirect("movie-browse")
+
+
+@login_required
+@require_POST
+def queue_movie_refresh(request, pk):
+    movie = get_object_or_404(Movie, pk=pk)
+    if not movie.tmdb_id:
+        messages.error(request, "This film has no TMDB ID and cannot be refreshed from TMDB.")
+        return redirect("movie-detail", pk=pk)
+    preferences = _user_provider_settings(request.user)
+    if not settings.TMDB_API_KEY or not preferences.get("tmdb", True):
+        messages.error(request, "Provider refresh requires a configured TMDB API key.")
+        return redirect("movie-detail", pk=pk)
+    enqueue_job(
+        SyncJob.Kind.ENRICH_MOVIE,
+        payload={"tmdb_id": movie.tmdb_id, "enabled_providers": preferences},
+        idempotency_key=f"manual:refresh:{request.user.pk}:{movie.pk}:{uuid4().hex}",
+    )
+    messages.success(request, "Provider refresh queued.")
+    return redirect("movie-detail", pk=pk)
+
+
+@login_required
+@require_POST
+def queue_person_filmography(request, pk):
+    person = get_object_or_404(Person, pk=pk)
+    if not person.tmdb_id:
+        messages.error(request, "This person has no TMDB ID for a filmography import.")
+        return redirect("person-detail", pk=pk)
+    if not settings.TMDB_API_KEY or not _user_provider_settings(request.user).get("tmdb", True):
+        messages.error(request, "Filmography import requires a configured TMDB API key.")
+        return redirect("person-detail", pk=pk)
+    enqueue_job(
+        SyncJob.Kind.IMPORT_PERSON_FILMOGRAPHY,
+        payload={"person_tmdb_id": person.tmdb_id},
+        idempotency_key=f"manual:person:{request.user.pk}:{person.pk}:{uuid4().hex}",
+    )
+    messages.success(request, "Filmography import queued.")
+    return redirect("person-detail", pk=pk)
 
 
 @login_required

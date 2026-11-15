@@ -224,8 +224,13 @@ def ingest_tmdb_movie(payload: dict, *, run_key: str) -> Movie:
     return movie
 
 
-def sync_external_ratings(movie: Movie, *, run_key: str) -> None:
-    if settings.OMDB_API_KEY and movie.imdb_id:
+def sync_external_ratings(movie: Movie, *, run_key: str, enabled_providers: dict | None = None) -> None:
+    enabled = (
+        {name for name, value in enabled_providers.items() if value}
+        if enabled_providers is not None
+        else {"omdb", "kinopoisk"}
+    )
+    if "omdb" in enabled and settings.OMDB_API_KEY and movie.imdb_id:
         try:
             with OMDbAdapter() as adapter:
                 payload = adapter.lookup(imdb_id=movie.imdb_id)
@@ -236,7 +241,7 @@ def sync_external_ratings(movie: Movie, *, run_key: str) -> None:
         except ProviderError:
             logger.warning("OMDb ratings unavailable for movie %s", movie.pk, exc_info=True)
 
-    if settings.KINOPOISK_API_KEY and (movie.imdb_id or movie.kinopoisk_id):
+    if "kinopoisk" in enabled and settings.KINOPOISK_API_KEY and (movie.imdb_id or movie.kinopoisk_id):
         try:
             with KinopoiskAdapter() as adapter:
                 payload = adapter.lookup(imdb_id=movie.imdb_id or "", kinopoisk_id=movie.kinopoisk_id or "")
@@ -252,11 +257,11 @@ def sync_external_ratings(movie: Movie, *, run_key: str) -> None:
             logger.warning("Kinopoisk ratings unavailable for movie %s", movie.pk, exc_info=True)
 
 
-def refresh_tmdb_movie(tmdb_id: int, *, run_key: str) -> Movie:
+def refresh_tmdb_movie(tmdb_id: int, *, run_key: str, enabled_providers: dict | None = None) -> Movie:
     if not settings.TMDB_API_KEY:
         raise ProviderError("TMDB API key is not configured.")
     with TMDBAdapter() as adapter:
         payload = adapter.movie_details(tmdb_id)
     movie = ingest_tmdb_movie(payload, run_key=run_key)
-    sync_external_ratings(movie, run_key=run_key)
+    sync_external_ratings(movie, run_key=run_key, enabled_providers=enabled_providers)
     return movie

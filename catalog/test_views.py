@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -127,10 +128,17 @@ class CatalogPageTests(TestCase):
         settings_response = self.client.post(reverse("settings"), {
             "preferred_country": "ru",
             "interface_language": "ru",
+            "enabled_providers": ["tmdb", "kinopoisk"],
         })
         preferences = UserSettings.objects.get(user=self.user)
         self.assertEqual(settings_response.status_code, 302)
         self.assertEqual(preferences.preferred_country, "ru")
+        self.assertEqual(preferences.enabled_providers, {
+            "tmdb": True,
+            "omdb": False,
+            "kinopoisk": True,
+            "disc": False,
+        })
 
         disc = DiscRelease.objects.create(
             movie=self.movie,
@@ -141,3 +149,47 @@ class CatalogPageTests(TestCase):
         self.assertTrue(OwnedDisc.objects.filter(user=self.user, movie=self.movie, release=disc).exists())
         self.assertEqual(self.client.get(reverse("library-export")).status_code, 200)
         self.assertIn("text/csv", self.client.get(reverse("library-export")).headers["Content-Type"])
+
+    @patch("catalog.views.TMDBAdapter")
+    def test_global_archive_search_renders_remote_matches(self, adapter_class):
+        self.client.force_login(self.user)
+        adapter = adapter_class.return_value.__enter__.return_value
+        adapter.search_movies.return_value = {"results": [{
+            "id": 9901,
+            "title": "Unreleased Archive Film",
+            "original_title": "Archive Film",
+            "release_date": "1940-01-01",
+            "poster_path": "/archive.jpg",
+        }]}
+        adapter_class.image_url.return_value = "https://image.example/archive.jpg"
+        with self.settings(TMDB_API_KEY="tmdb-test"):
+            response = self.client.get(reverse("movie-browse"), {"q": "archive", "source": "all"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Unreleased Archive Film")
+        self.assertContains(response, "/movie/import/")
+        adapter.search_movies.assert_called_once_with("archive", page=1)
+
+    def test_import_refresh_person_and_manual_sync_actions_enqueue_jobs(self):
+        self.client.force_login(self.user)
+        movie = Movie.objects.create(title_original="Queue Film", tmdb_id=9902)
+        person = Person.objects.create(name="Queue Director", tmdb_id=9912)
+        with self.settings(TMDB_API_KEY="tmdb-test"):
+            with patch("catalog.views.enqueue_job") as enqueue:
+                import_response = self.client.post(reverse("movie-import"), {"tmdb_id": 9903})
+                refresh_response = self.client.post(reverse("movie-refresh", args=[movie.pk]))
+                person_response = self.client.post(reverse("person-import", args=[person.pk]))
+        self.assertEqual(import_response.status_code, 302)
+        self.assertEqual(refresh_response.status_code, 302)
+        self.assertEqual(person_response.status_code, 302)
+        self.assertEqual(enqueue.call_count, 3)
+        self.assertEqual(enqueue.call_args_list[0].args[0], "import_tmdb_movie")
+        self.assertEqual(enqueue.call_args_list[1].args[0], "enrich_movie")
+        self.assertEqual(enqueue.call_args_list[2].args[0], "import_person_filmography")
+
+        with self.settings(TMDB_API_KEY="tmdb-test"):
+            with patch("sync.views.enqueue_job") as enqueue_sync:
+                response = self.client.post(reverse("sync-run-now"), {"kind": "popular"})
+        self.assertEqual(response.status_code, 302)
+        enqueue_sync.assert_called_once()
+        self.assertEqual(enqueue_sync.call_args.args[0], "popular")

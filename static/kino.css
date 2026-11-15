@@ -739,6 +739,26 @@ select:focus, input:focus, textarea:focus { outline-color: #d97706; }
 .empty-inline { margin: 0; padding: 7px 9px; border-left: 2px solid rgba(217, 119, 6, .55); background: rgba(227, 222, 216, .025); color: #a59a8e; }
 .empty-state-actions .button.button-empty { border-color: rgba(217, 119, 6, .5); background: rgba(217, 119, 6, .11); color: #efb765; }
 .empty-state-actions .button.button-empty:hover { border-color: #d97706; background: rgba(217, 119, 6, .19); color: #ffd18b; }
+.archive-search-results { margin-top: 30px; }
+.archive-result-list { display: grid; }
+.archive-result { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid rgba(227, 222, 216, .12); }
+.archive-poster { display: block; width: 58px; aspect-ratio: 2 / 3; overflow: hidden; border-radius: 4px; background: #211b17; box-shadow: 0 9px 18px rgba(0, 0, 0, .48); }
+.archive-poster img { width: 100%; height: 100%; object-fit: cover; }
+.archive-poster > span { display: grid; height: 100%; place-items: center; padding: 4px; color: var(--muted); font-size: 9px; text-align: center; }
+.archive-result-copy { min-width: 0; }
+.archive-result-copy h3 { margin: 0; color: var(--ink); font: 500 19px/1.05 var(--font-display); }
+.archive-result-copy p { margin: 3px 0; color: #b6aa9d; font-size: 11px; }
+.archive-result-copy small { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 11px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.run-now-section { padding: 17px 0; border-bottom: 1px solid rgba(227, 222, 216, .13); }
+.run-now-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.run-now-actions form { margin: 0; }
+.run-now-actions .button { min-height: 31px; }
+.settings-field input[type="checkbox"] { accent-color: #d97706; }
+@media (max-width: 520px) {
+  .archive-result { grid-template-columns: 48px minmax(0, 1fr); gap: 10px; }
+  .archive-poster { width: 48px; }
+  .archive-result form, .archive-result > .button { grid-column: 2; }
+}
 
 body {
   background-color: #0f0e0d;
