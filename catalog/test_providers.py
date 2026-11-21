@@ -42,6 +42,24 @@ class ProviderAdapterTests(TestCase):
         self.assertEqual(normalized["release_year"], 2022)
         self.assertEqual(normalized["poster_path"], "https://image.tmdb.org/t/p/w500/poster.jpg")
 
+    def test_tmdb_bearer_token_uses_authorization_header(self):
+        captured = {}
+
+        def respond(request):
+            captured["authorization"] = request.headers.get("Authorization")
+            return httpx.Response(
+                200,
+                headers={"content-type": "application/json"},
+                json={"id": 550, "title": "Fight Club", "original_title": "Fight Club"},
+            )
+
+        bearer = "eyJhbGciOiJIUzI1NiJ9.test.signature"
+        with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+            adapter = TMDBAdapter(api_key=bearer, client=client)
+            adapter.movie_details(550)
+
+        self.assertEqual(captured["authorization"], f"Bearer {bearer}")
+
     def test_omdb_normalizes_ratings_and_votes(self):
         adapter = OMDbAdapter(api_key="omdb-test")
         ratings = adapter.normalize_ratings({

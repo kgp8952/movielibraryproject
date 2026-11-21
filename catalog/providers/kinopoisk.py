@@ -7,7 +7,7 @@ from catalog.providers.base import ProviderAdapter, ProviderUnavailable
 
 
 class KinopoiskAdapter(ProviderAdapter):
-    base_url = "https://api.kinopoisk.dev/v1.4/"
+    base_url = "https://api.poiskkino.dev/v1.4/"
 
     def __init__(self, *, api_key: str | None = None, **kwargs):
         super().__init__(api_key=api_key if api_key is not None else settings.KINOPOISK_API_KEY, **kwargs)

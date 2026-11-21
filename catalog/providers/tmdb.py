@@ -17,8 +17,12 @@ class TMDBAdapter(ProviderAdapter):
 
     def request_json(self, method: str, path: str, *, params=None, json=None, headers=None):
         params = dict(params or {})
-        params.setdefault("api_key", self.api_key)
-        return super().request_json(method, path, params=params, json=json, headers=headers)
+        request_headers = dict(headers or {})
+        if self.api_key and self.api_key.startswith("eyJ"):
+            request_headers["Authorization"] = f"Bearer {self.api_key}"
+        else:
+            params.setdefault("api_key", self.api_key)
+        return super().request_json(method, path, params=params, json=json, headers=request_headers or None)
 
     @staticmethod
     def normalize_movie(payload: dict[str, Any]) -> dict[str, Any]:
